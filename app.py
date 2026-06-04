@@ -8,20 +8,32 @@ import pandas as pd
 import numpy as np
 import shap
 import matplotlib.pyplot as plt
-import warnings
+import os, warnings
 warnings.filterwarnings("ignore")
 
 st.set_page_config(
-    page_title="Incidence_Stroke Risk Predictor",
+    page_title="Stroke Risk Predictor",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
+BASE_DIR = os.path.dirname(__file__)
+MODEL_GZ = os.path.join(BASE_DIR, "BRF_28vars.joblib.gz")
+MODEL_PKL = os.path.join(BASE_DIR, "BRF_28vars.joblib")
+
+# Auto-decompress model on first run
+if not os.path.exists(MODEL_PKL):
+    with st.spinner("Decompressing model (one-time)..."):
+        import gzip, shutil
+        with gzip.open(MODEL_GZ, "rb") as f_in:
+            with open(MODEL_PKL, "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
+
 # ── Load model ──
 @st.cache_resource
 def load_model():
-    art = joblib.load("D:/桌面/claude/模型构建/实验7_BRF参数调优/BRF_28vars.joblib")
+    art = joblib.load(MODEL_PKL)
     return art["model"], list(art["features"]), art["optimal_threshold"], art["test_metrics"]
 
 model, features, threshold, metrics = load_model()
@@ -157,8 +169,7 @@ st.info(
 
 @st.cache_resource
 def load_shap_background(_model):
-    train = pd.read_stata("D:/桌面/claude/模型构建/两种方法及以上共识变量/train_2plusmethod.dta")
-    X_bg = train[features].sample(min(100, len(train)), random_state=42)
+    X_bg = pd.read_csv(os.path.join(BASE_DIR, "shap_background.csv"))
     explainer = shap.TreeExplainer(_model)
     shap_values = explainer.shap_values(X_bg)
     return explainer, X_bg, shap_values
